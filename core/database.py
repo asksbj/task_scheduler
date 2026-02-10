@@ -71,8 +71,13 @@ class DatabaseManager:
         try:
             cursor = conn.cursor()
             yield cursor
+
+            if cursor.with_rows:
+                cursor.fetchall()
+
             if commit:
                 conn.commit()
+                
         except Exception as e:
             if conn:
                 conn.rollback()

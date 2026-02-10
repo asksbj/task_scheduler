@@ -1,4 +1,5 @@
 import datetime
+from typing import Optional
 
 from core.database import db_manager
 
@@ -34,6 +35,27 @@ class Task:
         task = cls.from_db(row)
         return task
 
+    @classmethod
+    def get_last_updated(cls, task_type: Optional[str] = None):
+        if task_type:
+            query = "SELECT * FROM task WHERE task_type = %s ORDER BY last_update LIMIT 1"
+            params = (task_type, )
+        else:
+            query = "SELECT * FROM task ORDER BY last_update LIMIT 1"
+            params = ()
+
+        row = db_manager.execute_query(query, params, fetch_one=True)
+        task = cls.from_db(row)
+        return task
+
+    @classmethod
+    def update_last_update(cls, task_id: int, last_update: Optional[datetime.datetime] = datetime.datetime.now()) -> None:
+        if not task_id:
+            return None
+
+        query = "UPDATE task SET last_update = %s WHERE id = %s"
+        params = (last_update, task_id)
+        db_manager.execute_query(query, params)
 
     def save(self) -> None:
         if self.id:
@@ -47,5 +69,14 @@ class Task:
         params = (self.task_type, self.owner, self.last_update, self.start_time, self.end_time)
 
         self.id = db_manager.execute_query(query, params)
+    
+    def _update(self) -> None:
+        query = "UPDATE task SET task_type = %s, owner = %s, last_update = %s, start_time = %s, end_time = %s WHERE id = %s"
+        params = (self.task_type, self.owner, self.last_update, self.start_time, self.end_time, self.id)
+
+        self.id = db_manager.execute_query(query, params)
+
+    
+
 
     

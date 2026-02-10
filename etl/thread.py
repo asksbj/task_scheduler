@@ -1,16 +1,63 @@
 import threading
-from typing import Callable
+import time
+import logging
+import datetime
+
+from typing import Optional
+from models.task import Task
+
 
 class TaskThread(threading.Thread):
-    def __init__(self, task_name: str, task_function: Callable, *args, **kwargs):
+    def __init__(self, exit_flag, schedular):
         super().__init__()
-        self.task_name = task_name
-        self.task_function = task_function
-        self.args = args
-        self.kwargs = kwargs
+        self._exit_flag = exit_flag
+        self._task_runners = schedular.get_task_runners()
+        self._task = None
 
     def run(self):
-        self.task_function(*self.args, **self.kwargs)
+        tid = threading.get_ident()
+        while not self._exit_flag.is_set():
+            if self._select_task():
+                logging.info(f"{tid} is working on task {self._task.id} for {self._task.owner}")
+                self._run_task()
+            else:
+                logging.debug(f"{tid} is idle...")
+                time.sleep(5)
 
     def keep_alive(self):
-        pass
+        task = self._task
+        if task:
+            task_timeout_secs = self._task_runners[task.task_type].TASK_TIMEOUT_SECS
+            if (task.last_update - datetime.datetime.now()).total_seconds() < (task_timeout_secs/2):
+                next_update = datetime.datetime.now() + datetime.timedelta(seconds=task_timeout_secs)
+                Task.update_last_update(task.id, next_update)
+                task.last_update = next_update
+
+    def cleanup(self, update_secs: Optional[int] = -1):
+        if self._task:
+            timestamp = datetime.datetime.now() + datetime.timedelta(seconds=update_secs)
+            Task.update_last_update(self._task.id, timestamp)
+            self._task = None
+
+    def _select_task(self):
+        task = Task.get_last_updated()
+        if task:
+            timestamp = datetime.datetime.now()
+            if task.last_update < timestamp:
+                task_timeout_secs = self._task_runners[task.task_type].TASK_TIMEOUT_SECS
+                task.last_update = timestamp + datetime.timedelta(task_timeout_secs)
+                task.save()
+                self._task = task
+                return True
+        return False
+
+    def _run_task(self):
+        task_runner = self._task_runners[self._task.task_type]
+        result = task_runner(self._task).run()
+
+        if result < 0:
+            self.cleanup(task_runner.TASK_RETRY_PERIOD)
+        elif result == 0:
+            self.cleanup(task_runner.TASK_TIMEOUT_SECS)
+        else:
+            self.cleanup()
