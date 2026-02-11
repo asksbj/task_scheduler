@@ -36,7 +36,18 @@ class Task:
         return task
 
     @classmethod
-    def get_last_updated(cls, task_type: Optional[str] = None):
+    def get_task_by_type_and_owner(cls, task_type: str, owner: str) -> 'Task':
+        if not task_type or not owner:
+            return None
+
+        query = "SELECT * FROM task WHERE task_type = %s and owner = %s"
+        params = (task_type, owner)
+        row = db_manager.execute_query(query, params, fetch_one=True)
+        task = cls.from_db(row)
+        return task
+
+    @classmethod
+    def get_last_updated(cls, task_type: Optional[str] = None) -> 'Task':
         if task_type:
             query = "SELECT * FROM task WHERE task_type = %s ORDER BY last_update LIMIT 1"
             params = (task_type, )
@@ -62,7 +73,6 @@ class Task:
             self._update()
         else:
             self._insert()
-            print(f"Task id after save {self.id}")
 
     def _insert(self) -> None:
         query = "INSERT INTO task (task_type, owner, last_update, start_time, end_time) VALUES (%s, %s, %s, %s, %s)"

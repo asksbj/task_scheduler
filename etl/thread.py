@@ -1,10 +1,12 @@
+import logging
 import threading
 import time
-import logging
 import datetime
 
 from typing import Optional
 from models.task import Task
+
+logging.basicConfig(level=logging.INFO)
 
 
 class TaskThread(threading.Thread):
@@ -16,6 +18,7 @@ class TaskThread(threading.Thread):
 
     def run(self):
         tid = threading.get_ident()
+        logging.info(f"Thread {tid} start running")
         while not self._exit_flag.is_set():
             if self._select_task():
                 logging.info(f"{tid} is working on task {self._task.id} for {self._task.owner}")
@@ -45,7 +48,7 @@ class TaskThread(threading.Thread):
             timestamp = datetime.datetime.now()
             if task.last_update < timestamp:
                 task_timeout_secs = self._task_runners[task.task_type].TASK_TIMEOUT_SECS
-                task.last_update = timestamp + datetime.timedelta(task_timeout_secs)
+                task.last_update = timestamp + datetime.timedelta(seconds=task_timeout_secs)
                 task.save()
                 self._task = task
                 return True

@@ -1,4 +1,4 @@
-from thread import TaskThread
+from etl.thread import TaskThread
 
 class TaskRunner:
     TASK_TIMEOUT_SECS = 600
